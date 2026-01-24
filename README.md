@@ -32,6 +32,7 @@ This project aims to build a **from-scratch distributed log processing and searc
 
 ## 🏗️ High-Level Architecture (Planned)
 
+```
 ┌────────────────┐
 │ Log Producers  │
 └───────┬────────┘
@@ -61,6 +62,7 @@ This project aims to build a **from-scratch distributed log processing and searc
 ┌────────────────────────┐
 │ Search & Query API     │
 └────────────────────────┘
+```
 
 ---
 
@@ -139,6 +141,7 @@ This project aims to build a **from-scratch distributed log processing and searc
 
 ## 📂 Repository Structure (Planned)
 
+```
 distributed-log-search/
 ├── ingestion/          # Log ingestion services (HTTP / TCP)
 ├── queue/              # Distributed log queue implementation
@@ -149,6 +152,7 @@ distributed-log-search/
 ├── docs/
 │   └── architecture.md # Design notes and system diagrams
 └── README.md
+```
 ---
 
 ## 🚀 Getting Started
