@@ -62,7 +62,6 @@ This project aims to build a **from-scratch distributed log processing and searc
 │ Search & Query API     │
 └────────────────────────┘
 
-
 ---
 
 ## 🧩 Core Components
@@ -150,7 +149,6 @@ distributed-log-search/
 ├── docs/
 │   └── architecture.md # Design notes and system diagrams
 └── README.md
-
 ---
 
 ## 🚀 Getting Started
