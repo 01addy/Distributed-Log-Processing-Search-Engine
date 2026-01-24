@@ -32,25 +32,35 @@ This project aims to build a **from-scratch distributed log processing and searc
 
 ## 🏗️ High-Level Architecture (Planned)
 
-Log Producers
-│
-▼
-Ingestion Layer (HTTP / TCP)
-│
-▼
-Distributed Log Queue
-│
-▼
-Processing & Parsing Layer
-│
-▼
-Indexing Engine
-│
-▼
-Distributed Storage
-│
-▼
-Search & Query API
+┌────────────────┐
+│ Log Producers  │
+└───────┬────────┘
+        ▼
+┌────────────────────────┐
+│ Ingestion Layer        │
+│ (HTTP / TCP)           │
+└───────┬────────────────┘
+        ▼
+┌────────────────────────┐
+│ Distributed Log Queue  │
+└───────┬────────────────┘
+        ▼
+┌────────────────────────┐
+│ Processing & Parsing   │
+│ Layer                  │
+└───────┬────────────────┘
+        ▼
+┌────────────────────────┐
+│ Indexing Engine        │
+└───────┬────────────────┘
+        ▼
+┌────────────────────────┐
+│ Distributed Storage    │
+└───────┬────────────────┘
+        ▼
+┌────────────────────────┐
+│ Search & Query API     │
+└────────────────────────┘
 
 
 ---
@@ -131,14 +141,14 @@ Search & Query API
 ## 📂 Repository Structure (Planned)
 
 distributed-log-search/
-├── ingestion/
-├── queue/
-├── processor/
-├── indexer/
-├── storage/
-├── search-api/
+├── ingestion/          # Log ingestion services (HTTP / TCP)
+├── queue/              # Distributed log queue implementation
+├── processor/          # Parsing and enrichment logic
+├── indexer/            # Indexing and search structures
+├── storage/            # Distributed storage layer
+├── search-api/         # Query and search REST API
 ├── docs/
-│ └── architecture.md
+│   └── architecture.md # Design notes and system diagrams
 └── README.md
 
 ---
