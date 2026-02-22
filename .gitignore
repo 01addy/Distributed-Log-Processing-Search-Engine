@@ -1,0 +1,15 @@
+New-Item .gitignore -Force
+Set-Content .gitignore @"
+target/
+*.class
+*.jar
+*.war
+.idea/
+*.iml
+.mvn/
+node_modules/
+dist/
+.env
+*.log
+docker-data/
+"@

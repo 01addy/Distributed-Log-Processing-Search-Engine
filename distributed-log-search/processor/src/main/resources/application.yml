@@ -1,0 +1,43 @@
+server:
+  port: 8082
+
+spring:
+  application:
+    name: log-processor-service
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+
+kafka:
+  topic:
+    logs: log-events
+  consumer:
+    group-id: log-processors
+    concurrency: 3           # 3 parallel consumer threads
+    max-poll-records: 100    # Process up to 100 records per poll
+
+elasticsearch:
+  host: ${ELASTICSEARCH_HOST:localhost}
+  port: ${ELASTICSEARCH_PORT:9200}
+  scheme: ${ELASTICSEARCH_SCHEME:http}
+  username: ${ELASTICSEARCH_USERNAME:}
+  password: ${ELASTICSEARCH_PASSWORD:}
+  index:
+    prefix: applogs
+    shards: 3
+    replicas: 1
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,prometheus,metrics
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+logging:
+  level:
+    com.logSearch: DEBUG
+    org.apache.kafka: WARN
+    org.elasticsearch: WARN

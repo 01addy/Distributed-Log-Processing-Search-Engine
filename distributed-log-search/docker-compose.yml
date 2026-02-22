@@ -1,0 +1,223 @@
+version: '3.8'
+
+# ===========================================================
+# Distributed Log Processing & Search Engine
+# Docker Compose for local development and testing
+#
+# Services:
+#   Infrastructure: Kafka, Zookeeper, Elasticsearch, Kibana
+#   Application: ingestion, processor, search-api
+#
+# Start everything:   docker-compose up -d
+# Start infra only:   docker-compose up -d zookeeper kafka elasticsearch
+# View logs:          docker-compose logs -f ingestion
+# ===========================================================
+
+services:
+
+  # ─── Infrastructure ────────────────────────────────────────
+
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2181
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2181:2181"
+    networks:
+      - log-network
+    healthcheck:
+      test: ["CMD", "nc", "-z", "localhost", "2181"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka
+    depends_on:
+      zookeeper:
+        condition: service_healthy
+    ports:
+      - "9092:9092"
+      - "9101:9101"  # JMX for monitoring
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2181
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_HOST:PLAINTEXT
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://kafka:29092,PLAINTEXT_HOST://localhost:9092
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: "false"
+      KAFKA_LOG_RETENTION_HOURS: 48          # Keep logs 48h for reprocessing
+      KAFKA_LOG_SEGMENT_BYTES: 1073741824    # 1GB segments
+      KAFKA_NUM_PARTITIONS: 6                # 6 partitions for parallel processing
+      KAFKA_DEFAULT_REPLICATION_FACTOR: 1
+      KAFKA_JMX_PORT: 9101
+    networks:
+      - log-network
+    healthcheck:
+      test: ["CMD", "kafka-topics", "--bootstrap-server", "localhost:9092", "--list"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+
+  # Kafka topic initialization
+  kafka-init:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: kafka-init
+    depends_on:
+      kafka:
+        condition: service_healthy
+    networks:
+      - log-network
+    entrypoint: ["/bin/sh", "-c"]
+    command: |
+      "
+      echo 'Creating Kafka topics...'
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists \
+        --topic log-events \
+        --partitions 6 \
+        --replication-factor 1 \
+        --config retention.ms=172800000 \
+        --config segment.bytes=1073741824
+      kafka-topics --bootstrap-server kafka:29092 --create --if-not-exists \
+        --topic log-events.DLT \
+        --partitions 3 \
+        --replication-factor 1
+      echo 'Topics created:'
+      kafka-topics --bootstrap-server kafka:29092 --list
+      "
+
+  # Kafka UI for development visibility
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: kafka-ui
+    depends_on:
+      - kafka
+    ports:
+      - "8090:8080"
+    environment:
+      KAFKA_CLUSTERS_0_NAME: local
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29092
+    networks:
+      - log-network
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:8.11.0
+    container_name: elasticsearch
+    environment:
+      - discovery.type=single-node
+      - xpack.security.enabled=false        # Disabled for local dev
+      - xpack.security.http.ssl.enabled=false
+      - ES_JAVA_OPTS=-Xms1g -Xmx1g
+      - bootstrap.memory_lock=true
+      - "indices.query.bool.max_clause_count=4096"
+    ulimits:
+      memlock:
+        soft: -1
+        hard: -1
+    ports:
+      - "9200:9200"
+      - "9300:9300"
+    volumes:
+      - elasticsearch-data:/usr/share/elasticsearch/data
+    networks:
+      - log-network
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9200/_cluster/health || exit 1"]
+      interval: 15s
+      timeout: 10s
+      retries: 10
+
+  kibana:
+    image: docker.elastic.co/kibana/kibana:8.11.0
+    container_name: kibana
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    ports:
+      - "5601:5601"
+    environment:
+      ELASTICSEARCH_HOSTS: http://elasticsearch:9200
+      XPACK_SECURITY_ENABLED: "false"
+    networks:
+      - log-network
+
+  # ─── Application Services ─────────────────────────────────
+
+  ingestion:
+    build:
+      context: .
+      dockerfile: ingestion/Dockerfile
+    container_name: log-ingestion
+    depends_on:
+      kafka:
+        condition: service_healthy
+    ports:
+      - "8081:8081"
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      SPRING_PROFILES_ACTIVE: docker
+    networks:
+      - log-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8081/api/v1/logs/health"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+
+  processor:
+    build:
+      context: .
+      dockerfile: processor/Dockerfile
+    container_name: log-processor
+    depends_on:
+      kafka:
+        condition: service_healthy
+      elasticsearch:
+        condition: service_healthy
+    environment:
+      KAFKA_BOOTSTRAP_SERVERS: kafka:29092
+      ELASTICSEARCH_HOST: elasticsearch
+      ELASTICSEARCH_PORT: 9200
+      SPRING_PROFILES_ACTIVE: docker
+    networks:
+      - log-network
+    restart: unless-stopped
+    # Scale processors horizontally for higher throughput
+    # To scale: docker-compose up --scale processor=3
+
+  search-api:
+    build:
+      context: .
+      dockerfile: search-api/Dockerfile
+    container_name: log-search-api
+    depends_on:
+      elasticsearch:
+        condition: service_healthy
+    ports:
+      - "8083:8083"
+    environment:
+      ELASTICSEARCH_HOST: elasticsearch
+      ELASTICSEARCH_PORT: 9200
+      SPRING_PROFILES_ACTIVE: docker
+    networks:
+      - log-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8083/api/v1/search/health"]
+      interval: 20s
+      timeout: 10s
+      retries: 5
+    restart: unless-stopped
+
+networks:
+  log-network:
+    driver: bridge
+
+volumes:
+  elasticsearch-data:
+    driver: local

@@ -1,0 +1,39 @@
+server:
+  port: 8081
+  tomcat:
+    max-threads: 200
+    min-spare-threads: 20
+
+spring:
+  application:
+    name: log-ingestion-service
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP_SERVERS:localhost:9092}
+    producer:
+      client-id: log-ingestion-producer
+      key-serializer: org.apache.kafka.common.serialization.StringSerializer
+      value-serializer: org.springframework.kafka.support.serializer.JsonSerializer
+
+kafka:
+  topic:
+    logs: log-events
+  producer:
+    batch-size: 65536    # 64KB batches for high throughput
+    linger-ms: 10        # Wait up to 10ms to fill a batch
+    buffer-memory: 33554432  # 32MB producer buffer
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,prometheus,metrics
+  metrics:
+    export:
+      prometheus:
+        enabled: true
+
+logging:
+  level:
+    com.logSearch: DEBUG
+    org.apache.kafka: WARN
+    org.springframework.kafka: WARN
