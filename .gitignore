@@ -1,0 +1,7 @@
+New-Item .gitignore -Force
+Set-Content .gitignore @"
+node_modules/
+dist/
+.env
+*.log
+"@
